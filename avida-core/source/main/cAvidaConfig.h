@@ -280,7 +280,7 @@ public:
   // -------- General config options --------
   CONFIG_ADD_GROUP(GENERAL_GROUP, "General Settings");
   CONFIG_ADD_VAR(VERBOSITY, int, 1, "0 = No output at all\n1 = Normal output\n2 = Verbose output, detailing progress\n3 = High level of details, as available\n4 = Print Debug Information, as applicable");
-  CONFIG_ADD_VAR(RANDOM_SEED, int, 0, "Random number seed (0 for based on time)");
+  CONFIG_ADD_VAR(RANDOM_SEED, int, -1, "Random number seed (-1 for based on time)");
   CONFIG_ADD_VAR(SPECULATIVE, bool, 1, "Enable speculative execution\n(pre-execute instructions that don't affect other organisms)");
   CONFIG_ADD_VAR(POPULATION_CAP, int, 0, "Carrying capacity in number of organisms (use 0 for no cap)");
   CONFIG_ADD_VAR(POP_CAP_ELDEST, int, 0, "Carrying capacity in number of organisms (use 0 for no cap). Will kill oldest organism in population, but still use birth method to place new offspring."); 
@@ -448,9 +448,9 @@ public:
   CONFIG_ADD_VAR(PARASITE_SKIP_REACTIONS, int, 1, "Parasite tasks do not get processed in the environment (1) or they do trigger reactions (0)");
   CONFIG_ADD_VAR(INJECT_SKIP_FIRST_TASK, int, 0, "They cannot match the first task the host is doing to infect");
   CONFIG_ADD_VAR(INJECT_DEFAULT_SUCCESS, double, 0.0, "If injection is task specific, with what probability should non-matching parasites infect the host ");
-  CONFIG_ADD_VAR(PARASITE_VIRULENCE, double, -1, "The probabalistic percentage of cpu cycles allocated to the parasite instead of the host. Ensure INJECT_IS_VIRULENT is set to 0. This only works for single infection at the moment");
-  CONFIG_ADD_VAR(VIRULENCE_SOURCE, int, 0, "Virulence is set by config (0) or inhereted from parent (1)");
-  CONFIG_ADD_VAR(VIRULENCE_MUT_RATE, double, 0.1, "The probability that virulence will mutate if it is inhereted from the parent (VIRULENCE_SOURCE = 1)");
+  CONFIG_ADD_VAR(PARASITE_VIRULENCE, double, -1, "The probabalistic percentage of cpu cycles allocated to the parasite instead of the host. Ensure INJECT_IS_VIRULENT is set to 0. This only works for single infection at the moment. Note that this should be set to a default even if virulence is evolving.");
+  CONFIG_ADD_VAR(VIRULENCE_SOURCE, int, 0, "Virulence is set by config (0) or inhereted from parent (1) or host-controlled, i.e. donation (2)");
+  CONFIG_ADD_VAR(VIRULENCE_MUT_RATE, double, 0.1, "The probability that virulence will mutate if it is inhereted from the parent or host-controlled (VIRULENCE_SOURCE = 1 & 2)");
   CONFIG_ADD_VAR(VIRULENCE_SD, double, 0.1, "New Virulence will be drawn from a normal distribution centered on the parental virulence, with this standard deviation");
 
 
@@ -624,7 +624,8 @@ public:
   CONFIG_ADD_VAR(RETURN_STORED_ON_DEATH, bool, 1, "Return an organism's stored resources to the world when it dies?");
   CONFIG_ADD_VAR(SPLIT_ON_DIVIDE, bool, 1, "Split mother cell's resources between two daughter cells on division?");
   CONFIG_ADD_VAR(COLLECT_SPECIFIC_RESOURCE, int, 0, "Resource to be collected by the \"collect-specific\" instruction.");
-  CONFIG_ADD_VAR(NON_1_RESOURCE_RATIOS, cString, "", "Resources to be collected by the \"collect-specific-ratio\" instruction in a non 1:1 ratio. Specify as 'resourceID1:ratio1, resouceID2:ratio2' etc");
+  CONFIG_ADD_VAR(NON_1_RESOURCE_RATIOS, cString, "1:1", "Resources to be collected by the \"collect-specific-ratio\" instruction in a non 1:1 ratio. Specify as 'resourceID1:ratio1, resouceID2:ratio2' etc");
+  CONFIG_ADD_VAR(COLLECT_AMOUNT, double, 1, "The amount to collect for collect-specific, or for a resource with a ratio of 1 in collect-specific-ratio");
   CONFIG_ADD_VAR(RESOURCE_GIVEN_ON_INJECT, double, 0.0, "Units of collect-specific resources given on inject.");  
   CONFIG_ADD_VAR(RESOURCE_GIVEN_AT_BIRTH, double, 0.0, "Units of collect-specific resources given to offspring upon birth (will be added to SPLIT_ON_DIVIDE amount for collect-specific resource if both enabled.");  
   CONFIG_ADD_VAR(COLLECT_PROB_DIVISOR, int, 1, "Divisor for probabilistic collect instructions.");

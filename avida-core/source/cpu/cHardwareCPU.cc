@@ -437,6 +437,9 @@ tInstLib<cHardwareCPU::tMethod>* cHardwareCPU::initInstLib(void)
     tInstLibEntry<tMethod>("set-mate-preference-highest-display-a", &cHardwareCPU::Inst_SetMatePreferenceHighestDisplayA, INST_CLASS_LIFECYCLE),
     tInstLibEntry<tMethod>("set-mate-preference-highest-display-b", &cHardwareCPU::Inst_SetMatePreferenceHighestDisplayB, INST_CLASS_LIFECYCLE),
     tInstLibEntry<tMethod>("set-mate-preference-highest-merit", &cHardwareCPU::Inst_SetMatePreferenceHighestMerit, INST_CLASS_LIFECYCLE),
+    tInstLibEntry<tMethod>("set-mate-preference-lowest-display-a", &cHardwareCPU::Inst_SetMatePreferenceLowestDisplayA, INST_CLASS_LIFECYCLE),
+    tInstLibEntry<tMethod>("set-mate-preference-lowest-display-b", &cHardwareCPU::Inst_SetMatePreferenceLowestDisplayB, INST_CLASS_LIFECYCLE),
+    tInstLibEntry<tMethod>("set-mate-preference-lowest-merit", &cHardwareCPU::Inst_SetMatePreferenceLowestMerit, INST_CLASS_LIFECYCLE),
     
     
     // High-level instructions
@@ -480,6 +483,11 @@ tInstLib<cHardwareCPU::tMethod>* cHardwareCPU::initInstLib(void)
     tInstLibEntry<tMethod>("spawn-deme", &cHardwareCPU::Inst_SpawnDeme, INST_CLASS_LIFECYCLE, nInstFlag::STALL),
     
     // Suicide
+    tInstLibEntry<tMethod>("lyse",	&cHardwareCPU::Inst_Lyse, INST_CLASS_OTHER, nInstFlag::STALL),
+    tInstLibEntry<tMethod>("lyse-pre",	&cHardwareCPU::Inst_Lyse_PreDivide, INST_CLASS_OTHER, nInstFlag::STALL),
+    tInstLibEntry<tMethod>("lyse-post",	&cHardwareCPU::Inst_Lyse_PostDivide, INST_CLASS_OTHER, nInstFlag::STALL),
+    tInstLibEntry<tMethod>("nop-pre", &cHardwareCPU::Inst_NopPre, INST_CLASS_OTHER, nInstFlag::STALL),
+    tInstLibEntry<tMethod>("nop-post", &cHardwareCPU::Inst_NopPost, INST_CLASS_OTHER, nInstFlag::STALL),
     tInstLibEntry<tMethod>("explode",	&cHardwareCPU::Inst_Kazi, INST_CLASS_OTHER, nInstFlag::STALL),
     tInstLibEntry<tMethod>("explode1", &cHardwareCPU::Inst_Kazi1, INST_CLASS_OTHER, nInstFlag::STALL),
     tInstLibEntry<tMethod>("explode2", &cHardwareCPU::Inst_Kazi2, INST_CLASS_OTHER, nInstFlag::STALL),
@@ -3638,7 +3646,61 @@ bool cHardwareCPU::Inst_SmartExplode(cAvidaContext& ctx)
   return true;
 }
 
+bool cHardwareCPU::Inst_Lyse(cAvidaContext& ctx)
+{
+  //Note: This instruction doesn't kill the organism and assumes it is paired with a lethal reaction
+  if (GetRegister(FindModifiedRegister(REG_AX))){
+    m_organism->GetPhenotype().SetKaboomExecuted(true);
+    m_world->GetStats().IncKaboom();
+  } else {
+    m_world->GetStats().IncDontExplode();
+  }
+  return true;
+}
 
+bool cHardwareCPU::Inst_Lyse_PreDivide(cAvidaContext& ctx)
+{
+  //Note: This instruction doesn't kill the organism and assumes it is paired with a lethal reaction
+  if (ctx.GetRandom().P(m_world->GetConfig().KABOOM_PROB.Get()) && (m_organism->GetPhenotype().GetNumDivides()==0)){
+    m_organism->GetPhenotype().SetKaboomExecuted(true);
+    m_world->GetStats().IncKaboomPreDivide();
+  } else {
+    m_world->GetStats().IncDontExplode();
+  }
+  return true;
+}
+
+bool cHardwareCPU::Inst_Lyse_PostDivide(cAvidaContext& ctx)
+{
+  //Note: This instruction doesn't kill the organism and assumes it is paired with a lethal reaction
+  if (ctx.GetRandom().P(m_world->GetConfig().KABOOM_PROB.Get()) && (m_organism->GetPhenotype().GetNumDivides()>0)){
+    m_organism->GetPhenotype().SetKaboomExecuted(true);
+    m_world->GetStats().IncKaboomPostDivide();
+  } else {
+    m_world->GetStats().IncDontExplode();
+  }
+  return true;
+}
+
+bool cHardwareCPU::Inst_NopPre(cAvidaContext& ctx)
+{
+  //A no-operation instruction that only succeeds pre-divide in order to measure base pre-divide executions
+  if (m_organism->GetPhenotype().GetNumDivides()==0){
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool cHardwareCPU::Inst_NopPost(cAvidaContext& ctx)
+{
+  //A no-operation instruction that only succeeds pre-divide in order to measure base pre-divide executions
+  if (m_organism->GetPhenotype().GetNumDivides()>0){
+    return true;
+  } else {
+    return false;
+  }
+}
 
 bool cHardwareCPU::Inst_Kazi(cAvidaContext& ctx)
 {
@@ -4549,17 +4611,21 @@ bool cHardwareCPU::Inst_CollectUnitProbabilistic(cAvidaContext& ctx)
 
 /* Takes the resource specified by the COLLECT_RESOURCE_SPECIFIC config option
  * from the environment and adds it to the internal resource bins of the organism.
+ * Number of units to be collected is specific by COLLECT_AMOUNT config option 
+ * (default: 1) - ELD
  */
 bool cHardwareCPU::Inst_CollectSpecific(cAvidaContext& ctx)
 {
   const int resource = m_world->GetConfig().COLLECT_SPECIFIC_RESOURCE.Get();
   double res_before = m_organism->GetRBin(resource);
-  bool success = DoActualCollect(ctx, resource, true, true, false, false, 1);
+  bool success = DoActualCollect(ctx, resource, true, true, false, false, m_world->GetConfig().COLLECT_AMOUNT.Get());
   double res_after = m_organism->GetRBin(resource);
   GetRegister(FindModifiedRegister(REG_BX)) = (int)(res_after - res_before);
   return success;
 }
-// Collects the resource associated with the next instruction to be copied
+// Probabalistically collects COLLECT_AMOUNT units of the resource associated with the next 
+// instruction to be copied. As in other probabalistic collects, likelihood is based on the amount
+// of the desired resource in the environment, divided by COLLECT_PROB_DIVISOR
 // Returns success if resource is collected successfully. - ELD
 bool cHardwareCPU::Inst_CollectSpecificNeeded(cAvidaContext& ctx)
 {
@@ -4569,7 +4635,7 @@ bool cHardwareCPU::Inst_CollectSpecificNeeded(cAvidaContext& ctx)
   //of the instruction that is about to be copied, which conveniently 
   //corresponds to the index of the resource associated with that instruction
   double res_before = m_organism->GetRBin(resource);
-  bool success = DoActualCollect(ctx, resource, false, true, false, true, 1);
+  bool success = DoActualCollect(ctx, resource, false, true, true, true, m_world->GetConfig().COLLECT_AMOUNT.Get());
   double res_after = m_organism->GetRBin(resource);
   GetRegister(FindModifiedRegister(REG_BX)) = (int)(res_after - res_before);
   return success;
@@ -4577,7 +4643,10 @@ bool cHardwareCPU::Inst_CollectSpecificNeeded(cAvidaContext& ctx)
 
 // Collects all resources in a ratio of 1:1:1:...:1 unless otherwise
 // specified in the NON_1_RESOURCE_RATIOS setting in the config file.
-// Returns success if both resources are collected successfully. - ELD
+// The number of units of a 1:1 resource to be colected is specified by
+// COLLECT_AMOUNT in the config filed (default: 1) and all other amounts
+// are calculated accordingly.
+// Returns success if all resources are collected successfully. - ELD
 bool cHardwareCPU::Inst_CollectSpecificRatio(cAvidaContext& ctx)
 {
   double res_before = 0;
@@ -4627,9 +4696,9 @@ bool cHardwareCPU::Inst_CollectSpecificRatio(cAvidaContext& ctx)
   delete [] ratios;
 
   for (int i=0; i<m_organism->GetRBins().GetSize(); i++){
-    float collAmnt = 1.0;
+    float collAmnt = m_world->GetConfig().COLLECT_AMOUNT.Get();
     if (ratioMap.count(i) == 1){
-      collAmnt = ratioMap[i];
+      collAmnt *= ratioMap[i];
     }
     res_before = m_organism->GetRBin(i);
     success = success && DoActualCollect(ctx, i, false, true, false, true, collAmnt);
@@ -10830,7 +10899,10 @@ bool cHardwareCPU::Inst_SetMatePreference(cAvidaContext&, int mate_pref)
   m_organism->GetPhenotype().SetMatePreference(mate_pref);
   return true;
 }
+bool cHardwareCPU::Inst_SetMatePreferenceRandom(cAvidaContext& ctx) { return Inst_SetMatePreference(ctx, MATE_PREFERENCE_RANDOM); }
 bool cHardwareCPU::Inst_SetMatePreferenceHighestDisplayA(cAvidaContext& ctx) { return Inst_SetMatePreference(ctx, MATE_PREFERENCE_HIGHEST_DISPLAY_A); }
 bool cHardwareCPU::Inst_SetMatePreferenceHighestDisplayB(cAvidaContext& ctx) { return Inst_SetMatePreference(ctx, MATE_PREFERENCE_HIGHEST_DISPLAY_B); }
-bool cHardwareCPU::Inst_SetMatePreferenceRandom(cAvidaContext& ctx) { return Inst_SetMatePreference(ctx, MATE_PREFERENCE_RANDOM); }
 bool cHardwareCPU::Inst_SetMatePreferenceHighestMerit(cAvidaContext& ctx) { return Inst_SetMatePreference(ctx, MATE_PREFERENCE_HIGHEST_MERIT); }
+bool cHardwareCPU::Inst_SetMatePreferenceLowestDisplayA(cAvidaContext& ctx) { return Inst_SetMatePreference(ctx, MATE_PREFERENCE_LOWEST_DISPLAY_A); }
+bool cHardwareCPU::Inst_SetMatePreferenceLowestDisplayB(cAvidaContext& ctx) { return Inst_SetMatePreference(ctx, MATE_PREFERENCE_LOWEST_DISPLAY_B); }
+bool cHardwareCPU::Inst_SetMatePreferenceLowestMerit(cAvidaContext& ctx) { return Inst_SetMatePreference(ctx, MATE_PREFERENCE_LOWEST_MERIT); }

@@ -469,6 +469,11 @@ private:
   bool Inst_Sterilize(cAvidaContext& ctx);
 
   bool Inst_SpawnDeme(cAvidaContext& ctx);
+  bool Inst_Lyse(cAvidaContext& ctx);
+  bool Inst_Lyse_PreDivide(cAvidaContext& ctx);
+  bool Inst_Lyse_PostDivide(cAvidaContext& ctx);
+  bool Inst_NopPre(cAvidaContext& ctx);
+  bool Inst_NopPost(cAvidaContext& ctx);
   bool Inst_Kazi(cAvidaContext& ctx);
   bool Inst_Kazi1(cAvidaContext& ctx);
   bool Inst_Kazi2(cAvidaContext& ctx);
@@ -1037,10 +1042,13 @@ public:
   bool Inst_SetMatingDisplayA(cAvidaContext& ctx);
   bool Inst_SetMatingDisplayB(cAvidaContext& ctx);
   bool Inst_SetMatePreference(cAvidaContext& ctx, int mate_pref);
+  bool Inst_SetMatePreferenceRandom(cAvidaContext& ctx);
   bool Inst_SetMatePreferenceHighestDisplayA(cAvidaContext& ctx);
   bool Inst_SetMatePreferenceHighestDisplayB(cAvidaContext& ctx);
-  bool Inst_SetMatePreferenceRandom(cAvidaContext& ctx);
   bool Inst_SetMatePreferenceHighestMerit(cAvidaContext& ctx);
+  bool Inst_SetMatePreferenceLowestDisplayA(cAvidaContext& ctx);
+  bool Inst_SetMatePreferenceLowestDisplayB(cAvidaContext& ctx);
+  bool Inst_SetMatePreferenceLowestMerit(cAvidaContext& ctx);
 };
 
 
